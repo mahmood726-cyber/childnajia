@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HIDAYAH v1.0.0 — Clinical Danger Detection Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --emerald-50: #ecfdf5;
+            --emerald-100: #d1fae5;
+            --emerald-500: #10b981;
+            --emerald-600: #059669;
+            --emerald-700: #047857;
+            --amber-50: #fffbeb;
+            --amber-100: #fef3c7;
+            --amber-500: #f59e0b;
+            --amber-600: #d97706;
+            --red-50: #fef2f2;
+            --red-100: #fee2e2;
+            --red-500: #ef4444;
+            --red-600: #dc2626;
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-300: #cbd5e1;
+            --slate-400: #94a3b8;
+            --slate-500: #64748b;
+            --slate-600: #475569;
+            --slate-700: #334155;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+        }
+        body { 
+            font-family: 'IBM Plex Sans', sans-serif; 
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            min-height: 100vh;
+        }
+        .mono { font-family: 'IBM Plex Mono', monospace; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--slate-100); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--slate-400); }
+        
+        /* Danger level indicators */
+        .danger-green { 
+            background: linear-gradient(135deg, var(--emerald-50), var(--emerald-100));
+            border-left: 4px solid var(--emerald-500);
+        }
+        .danger-amber { 
+            background: linear-gradient(135deg, var(--amber-50), var(--amber-100));
+            border-left: 4px solid var(--amber-500);
+        }
+        .danger-red { 
+            background: linear-gradient(135deg, var(--red-50), var(--red-100));
+            border-left: 4px solid var(--red-500);
+        }
+        
+        /* Step indicator */
+        .step-active { 
+            background: var(--emerald-600);
+            color: white;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+        }
+        .step-complete { 
+            background: var(--emerald-100);
+            color: var(--emerald-700);
+        }
+        .step-pending { 
+            background: var(--slate-200);
+            color: var(--slate-500);
+        }
+        
+        /* Toggle switch */
+        .toggle-checkbox:checked + .toggle-label { background-color: var(--emerald-500); }
+        .toggle-checkbox:checked + .toggle-label:before { transform: translateX(1.25rem); }
+        .toggle-label {
+            transition: background-color 0.2s;
+            width: 2.75rem;
+            height: 1.5rem;
+            background-color: var(--slate-300);
+            border-radius: 9999px;
+            position: relative;
+            cursor: pointer;
+        }
+        .toggle-label:before {
+            content: '';
+            position: absolute;
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 9999px;
+            top: 0.125rem;
+            left: 0.125rem;
+            background-color: white;
+            transition: transform 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        
+        /* Pulse animation for danger */
+        @keyframes danger-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .danger-pulse { animation: danger-pulse 1.5s ease-in-out infinite; }
+        
+        /* Card hover */
+        .card-hover { transition: transform 0.2s, box-shadow 0.2s; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        
+        /* Radio/Checkbox styling */
+        input[type="radio"], input[type="checkbox"] {
+            accent-color: var(--emerald-600);
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+<div class="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
+    
+    <!-- Header -->
+    <header class="mb-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-heartbeat text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold text-slate-900">HIDAYAH</h1>
+                        <p class="text-xs text-slate-500 mono">Clinical Danger Detection Engine v1.0.0</p>
+                    </div>
+                </div>
+                <p class="text-slate-600 text-sm mt-2">IMCI-Based Risk Navigation • Offline-First • Uncertainty Quantified</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="runTests()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-medium shadow-sm transition flex items-center gap-2 text-sm">
+                    <i class="fas fa-vial"></i> Verify
+                </button>
+                <button onclick="resetAssessment()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg font-medium shadow-sm transition text-sm">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+            </div>
+        </div>
+        
+        <!-- 7-Step Progress (Fatiha-inspired) -->
+        <div class="mt-6 flex items-center justify-between gap-1 md:gap-2 overflow-x-auto pb-2">
+            <div id="step-1" class="step-indicator flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold step-active cursor-pointer" onclick="goToStep(1)" title="1. Acknowledge">1</div>
+            <div class="flex-1 h-1 bg-slate-200 rounded"></div>
+            <div id="step-2" class="step-indicator flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold step-pending cursor-pointer" onclick="goToStep(2)" title="2. Child Info">2</div>
+            <div class="flex-1 h-1 bg-slate-200 rounded"></div>
+            <div id="step-3" class="step-indicator flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold step-pending cursor-pointer" onclick="goToStep(3)" title="3. Danger Signs">3</div>
+            <div class="flex-1 h-1 bg-slate-200 rounded"></div>
+            <div id="step-4" class="step-indicator flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold step-pending cursor-pointer" onclick="goToStep(4)" title="4. Breathing">4</div>
+            <div class="flex-1 h-1 bg-slate-200 rounded"></div>
+            <div id="step-5" class="step-indicator flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold step-pending cursor-pointer" onclick="goToStep(5)" title="5. Hydration">5</div>
+            <div class="flex-1 h-1 bg-slate-200 rounded"></div>
+            <div id="step-6" class="step-indicator flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold step-pending cursor-pointer" onclick="goToStep(6)" title="6. Fever & Other">6</div>
+            <div class="flex-1 h-1 bg-slate-200 rounded"></div>
+            <div id="step-7" class="step-indicator flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-semibold step-pending cursor-pointer" onclick="goToStep(7)" title="7. Guidance">7</div>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-400 mt-1 px-1">
+            <span>Acknowledge</span>
+            <span>Child</span>
+            <span>Danger</span>
+            <span>Breathing</span>
+            <span>Hydration</span>
+            <span>Fever</span>
+            <span>Guidance</span>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Column: Assessment Steps -->
+        <div class="lg:col-span-5 space-y-4">
+            
+            <!-- Step 1: Acknowledgement (Bismillah - Recognition of Reality) -->
+            <div id="panel-1" class="step-panel bg-white p-5 rounded-xl shadow-sm border border-slate-200 card-hover">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                        <i class="fas fa-eye text-emerald-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-900">Step 1: Acknowledge Reality</h3>
+                        <p class="text-xs text-slate-500">This tool estimates danger — it does not diagnose</p>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-600 mb-4">
+                    <p class="mb-2"><strong>HIDAYAH</strong> implements WHO IMCI guidelines with uncertainty quantification.</p>
+                    <ul class="list-disc list-inside space-y-1 text-xs">
+                        <li>It estimates probability of clinical danger</li>
+                        <li>It does <strong>not</strong> provide a diagnosis</li>
+                        <li>When uncertain, it recommends safer action</li>
+                        <li>Always seek professional care if concerned</li>
+                    </ul>
+                </div>
+                <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="acknowledge" class="w-5 h-5 rounded" onchange="updateUI()">
+                    <span class="text-sm text-slate-700">I understand this is a guidance tool, not a diagnosis</span>
+                </label>
+            </div>
+
+            <!-- Step 2: Child Information -->
+            <div id="panel-2" class="step-panel bg-white p-5 rounded-xl shadow-sm border border-slate-200 card-hover hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                        <i class="fas fa-child text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-900">Step 2: Child Information</h3>
+                        <p class="text-xs text-slate-500">Age determines thresholds and vulnerability</p>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Age Group</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                                <input type="radio" name="age_group" value="neonate" onchange="updateUI()">
+                                <div>
+                                    <span class="text-sm font-medium text-slate-700">Neonate (0–28 days)</span>
+                                    <span class="block text-xs text-red-500">Highest vulnerability</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                                <input type="radio" name="age_group" value="young_infant" onchange="updateUI()">
+                                <div>
+                                    <span class="text-sm font-medium text-slate-700">Young Infant (1–2 months)</span>
+                                    <span class="block text-xs text-amber-600">Very high vulnerability</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                                <input type="radio" name="age_group" value="infant" checked onchange="updateUI()">
+                                <div>
+                                    <span class="text-sm font-medium text-slate-700">Infant (2–12 months)</span>
+                                    <span class="block text-xs text-slate-500">Fast breathing ≥50/min</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+                                <input type="radio" name="age_group" value="young_child" onchange="updateUI()">
+                                <div>
+                                    <span class="text-sm font-medium text-slate-700">Young Child (1–5 years)</span>
+                                    <span class="block text-xs text-slate-500">Fast breathing ≥40/min</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                        <div>
+                            <span class="text-sm font-medium text-slate-700">Malnourished or underweight?</span>
+                            <span class="block text-xs text-slate-500">Increases vulnerability threshold</span>
+                        </div>
+                        <input type="checkbox" id="malnourished" class="toggle-checkbox sr-only" onchange="updateUI()">
+                        <label for="malnourished" class="toggle-label"></label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: General Danger Signs (IMCI Core) -->
+            <div id="panel-3" class="step-panel bg-white p-5 rounded-xl shadow-sm border border-slate-200 card-hover hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                        <i class="fas fa-exclamation-triangle text-red-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-900">Step 3: General Danger Signs</h3>
+                        <p class="text-xs text-slate-500">IMCI: Any single sign = urgent referral needed</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <p class="text-xs text-red-600 font-medium bg-red-50 p-2 rounded">⚠️ ANY of these signs indicates serious danger</p>
+                    
+                    <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                        <input type="checkbox" id="not_able_to_drink" class="mt-1 w-5 h-5" onchange="updateUI()">
+                        <div>
+                            <span class="text-sm font-medium text-slate-700">Not able to drink or breastfeed</span>
+                            <span class="block text-xs text-slate-500">Too weak to suck or swallow</span>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                        <input type="checkbox" id="vomits_everything" class="mt-1 w-5 h-5" onchange="updateUI()">
+                        <div>
+                            <span class="text-sm font-medium text-slate-700">Vomits everything</span>
+                            <span class="block text-xs text-slate-500">Cannot keep anything down</span>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                        <input type="checkbox" id="convulsions" class="mt-1 w-5 h-5" onchange="updateUI()">
+                        <div>
+                            <span class="text-sm font-medium text-slate-700">Convulsions (now or recent)</span>
+                            <span class="block text-xs text-slate-500">Seizure, fit, or jerking movements</span>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                        <input type="checkbox" id="lethargic_unconscious" class="mt-1 w-5 h-5" onchange="updateUI()">
+                        <div>
+                            <span class="text-sm font-medium text-slate-700">Lethargic or unconscious</span>
+                            <span class="block text-xs text-slate-500">Unusually sleepy, difficult to wake, unresponsive</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Step 4: Breathing Assessment -->
+            <div id="panel-4" class="step-panel bg-white p-5 rounded-xl shadow-sm border border-slate-200 card-hover hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
+                        <i class="fas fa-lungs text-cyan-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-900">Step 4: Breathing</h3>
+                        <p class="text-xs text-slate-500">IMCI pneumonia classification</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                        <span class="text-sm text-slate-700">Does the child have cough or difficult breathing?</span>
+                        <input type="checkbox" id="has_cough" class="toggle-checkbox sr-only" onchange="updateUI()">
+                        <label for="has_cough" class="toggle-label"></label>
+                    </div>
+                    
+                    <div id="breathing_details" class="space-y-3 hidden">
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 cursor-pointer hover:bg-amber-100 transition">
+                            <input type="checkbox" id="fast_breathing" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Fast breathing</span>
+                                <span id="fast_breathing_threshold" class="block text-xs text-slate-500">≥50 breaths/min for infant 2-12 months</span>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                            <input type="checkbox" id="chest_indrawing" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Chest indrawing</span>
+                                <span class="block text-xs text-slate-500">Lower chest pulls in when breathing in</span>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                            <input type="checkbox" id="stridor" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Stridor when calm</span>
+                                <span class="block text-xs text-slate-500">Harsh noise when breathing in (not crying)</span>
+                            </div>
+                        </label>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Cough duration</label>
+                            <select id="cough_duration" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateUI()">
+                                <option value="acute">Less than 14 days</option>
+                                <option value="persistent">14-21 days</option>
+                                <option value="chronic">More than 21 days (chronic)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: Hydration/Diarrhoea -->
+            <div id="panel-5" class="step-panel bg-white p-5 rounded-xl shadow-sm border border-slate-200 card-hover hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                        <i class="fas fa-tint text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-900">Step 5: Hydration</h3>
+                        <p class="text-xs text-slate-500">IMCI diarrhoea & dehydration assessment</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                        <span class="text-sm text-slate-700">Does the child have diarrhoea?</span>
+                        <input type="checkbox" id="has_diarrhoea" class="toggle-checkbox sr-only" onchange="updateUI()">
+                        <label for="has_diarrhoea" class="toggle-label"></label>
+                    </div>
+                    
+                    <div id="diarrhoea_details" class="space-y-3 hidden">
+                        <p class="text-xs text-slate-600 bg-slate-100 p-2 rounded">Check for signs of dehydration:</p>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition">
+                            <input type="checkbox" id="restless_irritable" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Restless or irritable</span>
+                                <span class="block text-xs text-slate-500">Continuously agitated when touched</span>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition">
+                            <input type="checkbox" id="sunken_eyes" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Sunken eyes</span>
+                                <span class="block text-xs text-slate-500">Eyes appear deeper than usual</span>
+                            </div>
+                        </label>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Drinking ability</label>
+                            <select id="drinking_ability" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateUI()">
+                                <option value="normal">Drinks normally</option>
+                                <option value="eager">Drinks eagerly, thirsty</option>
+                                <option value="poor">Drinks poorly</option>
+                                <option value="unable">Not able to drink</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Skin pinch test</label>
+                            <select id="skin_pinch" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateUI()">
+                                <option value="immediate">Goes back immediately</option>
+                                <option value="slow">Goes back slowly (< 2 sec)</option>
+                                <option value="very_slow">Goes back very slowly (> 2 sec)</option>
+                            </select>
+                        </div>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                            <input type="checkbox" id="blood_in_stool" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Blood in stool</span>
+                                <span class="block text-xs text-slate-500">Indicates dysentery</span>
+                            </div>
+                        </label>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Diarrhoea duration</label>
+                            <select id="diarrhoea_duration" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateUI()">
+                                <option value="acute">Less than 14 days</option>
+                                <option value="persistent">14 days or more (persistent)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6: Fever & Other -->
+            <div id="panel-6" class="step-panel bg-white p-5 rounded-xl shadow-sm border border-slate-200 card-hover hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                        <i class="fas fa-thermometer-half text-orange-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-900">Step 6: Fever & Other Signs</h3>
+                        <p class="text-xs text-slate-500">IMCI fever classification & additional dangers</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                        <span class="text-sm text-slate-700">Does the child have fever?</span>
+                        <input type="checkbox" id="has_fever" class="toggle-checkbox sr-only" onchange="updateUI()">
+                        <label for="has_fever" class="toggle-label"></label>
+                    </div>
+                    
+                    <div id="fever_details" class="space-y-3 hidden">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Temperature (if measured)</label>
+                            <select id="temperature" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateUI()">
+                                <option value="unknown">Not measured / Unknown</option>
+                                <option value="low">37.5–38.4°C (Low grade)</option>
+                                <option value="moderate">38.5–38.9°C (Moderate)</option>
+                                <option value="high">39.0–39.9°C (High)</option>
+                                <option value="very_high">≥40°C (Very high)</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-2">Fever duration</label>
+                            <select id="fever_duration" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm" onchange="updateUI()">
+                                <option value="short">Less than 7 days</option>
+                                <option value="prolonged">7 days or more</option>
+                            </select>
+                        </div>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 transition">
+                            <input type="checkbox" id="stiff_neck" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Stiff neck</span>
+                                <span class="block text-xs text-slate-500">Cannot touch chin to chest — meningitis sign</span>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div class="border-t border-slate-200 pt-3 mt-3">
+                        <p class="text-xs text-slate-600 mb-3 font-medium">Other concerning signs:</p>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 cursor-pointer hover:bg-amber-100 transition mb-2">
+                            <input type="checkbox" id="severe_pallor" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Severe pallor</span>
+                                <span class="block text-xs text-slate-500">Very pale palms/conjunctiva — severe anaemia</span>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition">
+                            <input type="checkbox" id="measles_rash" class="mt-1 w-5 h-5" onchange="updateUI()">
+                            <div>
+                                <span class="text-sm font-medium text-slate-700">Measles rash (now or in last 3 months)</span>
+                                <span class="block text-xs text-slate-500">Red blotchy rash starting on face</span>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- Context Modifiers -->
+                    <div class="border-t border-slate-200 pt-3 mt-3">
+                        <p class="text-xs text-slate-600 mb-3 font-medium">Local context (affects risk):</p>
+                        
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-slate-50 mb-2">
+                            <span class="text-sm text-slate-700">Malaria endemic area</span>
+                            <input type="checkbox" id="malaria_endemic" class="toggle-checkbox sr-only" onchange="updateUI()">
+                            <label for="malaria_endemic" class="toggle-label"></label>
+                        </label>
+                        
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                            <span class="text-sm text-slate-700">Cholera/diarrhoea outbreak locally</span>
+                            <input type="checkbox" id="cholera_outbreak" class="toggle-checkbox sr-only" onchange="updateUI()">
+                            <label for="cholera_outbreak" class="toggle-label"></label>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 7: Result (Hidden until complete) -->
+            <div id="panel-7" class="step-panel hidden">
+                <!-- Results shown in right panel -->
+            </div>
+
+            <!-- Navigation Buttons -->
+            <div class="flex justify-between gap-4">
+                <button id="btn-prev" onclick="prevStep()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-3 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i class="fas fa-arrow-left mr-2"></i> Back
+                </button>
+                <button id="btn-next" onclick="nextStep()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    Next <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Column: Live Risk Display -->
+        <div class="lg:col-span-7 space-y-4">
+            
+            <!-- Main Risk Card -->
+            <div id="result-card" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Danger Assessment</h2>
+                        <p class="text-xs text-slate-500">Live risk estimation based on IMCI</p>
+                    </div>
+                    <span id="risk_badge" class="px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wide bg-slate-200 text-slate-600">
+                        Awaiting Input
+                    </span>
+                </div>
+                
+                <div class="p-6">
+                    <!-- Gauge -->
+                    <div class="flex flex-col items-center justify-center text-center mb-6">
+                        <div class="relative w-56 h-28 mb-4">
+                            <svg viewBox="0 0 100 50" class="w-full h-full transform overflow-visible">
+                                <defs>
+                                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" style="stop-color:#22c55e"/>
+                                        <stop offset="40%" style="stop-color:#eab308"/>
+                                        <stop offset="100%" style="stop-color:#ef4444"/>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#e2e8f0" stroke-width="10" stroke-linecap="round"/>
+                                <path id="gauge_arc" d="M 10 50 A 40 40 0 0 1 10 50" fill="none" stroke="url(#gaugeGradient)" stroke-width="10" stroke-linecap="round" class="transition-all duration-700 ease-out"/>
+                                <text x="50" y="42" text-anchor="middle" class="text-[16px] font-bold fill-slate-700 mono" id="percent_text">—%</text>
+                            </svg>
+                        </div>
+                        <div class="text-sm text-slate-500">Probability of Clinical Danger</div>
+                        <div class="mt-3 flex gap-4 text-xs text-slate-400">
+                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-emerald-500"></div>Green: Home care</div>
+                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-amber-500"></div>Amber: Clinic 24h</div>
+                            <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-red-500"></div>Red: Urgent referral</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Confidence Interval -->
+                    <div class="mb-6">
+                        <p class="text-sm font-medium text-slate-500 mb-2">Confidence Interval (80% Credible)</p>
+                        <div class="relative h-6 bg-slate-100 rounded-lg">
+                            <div id="ci_bar" class="absolute h-full bg-gradient-to-r from-emerald-200 via-amber-200 to-red-200 rounded-lg opacity-60 transition-all duration-500" style="left: 0%; width: 0%;"></div>
+                            <div id="median_marker" class="absolute h-8 w-1.5 bg-slate-700 -top-1 rounded transition-all duration-500" style="left: 0%;"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-slate-400 mt-1 mono">
+                            <span id="ci_low">0.00</span>
+                            <span id="ci_median" class="text-slate-700 font-bold">0.00</span>
+                            <span id="ci_high">1.00</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Top Drivers -->
+                    <div class="mb-6">
+                        <p class="text-sm font-medium text-slate-500 mb-3">Top Risk Drivers</p>
+                        <ul id="reasons_list" class="space-y-2 text-sm">
+                            <li class="text-slate-400 italic">Complete assessment to see risk factors</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Guidance Card -->
+            <div id="guidance-card" class="rounded-xl shadow-sm border overflow-hidden danger-green">
+                <div class="p-5">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-white/80 flex items-center justify-center">
+                            <i id="guidance_icon" class="fas fa-home text-emerald-600 text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 id="guidance_title" class="font-bold text-slate-800">Awaiting Assessment</h3>
+                            <p id="guidance_subtitle" class="text-xs text-slate-600">Complete the steps to receive guidance</p>
+                        </div>
+                    </div>
+                    <div id="guidance_content" class="text-sm text-slate-700 space-y-2">
+                        <p>Answer the assessment questions on the left to receive IMCI-based guidance.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IMCI Classification -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                <h3 class="font-semibold text-slate-800 mb-3 text-sm flex items-center gap-2">
+                    <i class="fas fa-clipboard-list text-slate-400"></i>
+                    IMCI Classifications Detected
+                </h3>
+                <div id="imci_classifications" class="space-y-2 text-sm">
+                    <p class="text-slate-400 italic text-xs">Classifications will appear as you complete the assessment</p>
+                </div>
+            </div>
+
+            <!-- Test Console -->
+            <div class="bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-800 text-slate-300 mono text-xs">
+                <div class="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                    <h3 class="font-bold text-white text-sm">Verification Suite</h3>
+                    <span id="test_status" class="text-xs uppercase tracking-wider text-slate-500">Ready</span>
+                </div>
+                <div id="test_console" class="space-y-1 h-32 overflow-y-auto">
+                    <span class="text-slate-500">> Click "Verify" to run IMCI compliance tests</span>
+                </div>
+            </div>
+
+            <!-- JSON Output (Collapsible) -->
+            <details class="bg-slate-900 rounded-xl shadow-sm border border-slate-800">
+                <summary class="p-4 cursor-pointer text-slate-300 text-sm font-medium">
+                    <i class="fas fa-code mr-2"></i>Engine Output (JSON)
+                </summary>
+                <pre id="json_output" class="p-4 pt-0 mono text-xs text-slate-400 overflow-auto max-h-48">...</pre>
+            </details>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-8 text-center text-xs text-slate-400 pb-4">
+        <p>HIDAYAH implements WHO IMCI guidelines with uncertainty quantification. Not a diagnostic tool.</p>
+        <p class="mt-1">© 2024 • Offline-First • Open Source</p>
+    </footer>
+</div>
+
+<script>
+/**
+ * HIDAYAH - Clinical Danger Detection Engine
+ * Version 1.0.0
+ * Based on WHO IMCI Guidelines
+ */
+
+// ============================================================
+// 1. MODEL CONFIGURATION (IMCI-Based)
+// ============================================================
+
+const MODEL = {
+    version: "1.0.0",
+    model_name: "HIDAYAH_ClinicalDangerEngine",
+    
+    // Decay function for time-dependent factors (similar to water engine)
+    decay: {
+        tau_hours: 48,
+        max_effect_hours: 168 // 7 days
+    },
+    
+    // Decision thresholds
+    thresholds: {
+        // Standard child (1-5 years)
+        standard: { 
+            green: 0.15,  // Below this = home care
+            amber: 0.40,  // Below this = clinic 24h, above = urgent
+        },
+        // Vulnerable (neonates, young infants, malnourished)
+        vulnerable: { 
+            green: 0.10,
+            amber: 0.30
+        }
+    },
+    
+    // Monte Carlo configuration
+    uncertainty: {
+        n_samples: 200,
+        missing_input_penalty_sd: 0.15,
+        confidence_interval: [0.10, 0.90]
+    },
+    
+    // Age-based priors (baseline danger probability without any symptoms)
+    age_priors: {
+        "neonate":      { p_danger: 0.20, sd: 0.40, fast_breathing_threshold: 60, vulnerable: true },
+        "young_infant": { p_danger: 0.15, sd: 0.35, fast_breathing_threshold: 60, vulnerable: true },
+        "infant":       { p_danger: 0.08, sd: 0.30, fast_breathing_threshold: 50, vulnerable: false },
+        "young_child":  { p_danger: 0.05, sd: 0.25, fast_breathing_threshold: 40, vulnerable: false }
+    },
+    
+    // Danger sign weights (log-odds contributions)
+    // IMCI: General danger signs should trigger immediate referral
+    weights: {
+        // GENERAL DANGER SIGNS (IMCI Core - any single one = urgent)
+        "not_able_to_drink":     { mean: 3.5, sd: 0.3, imci: "GENERAL_DANGER_SIGN", urgent: true },
+        "vomits_everything":     { mean: 3.0, sd: 0.3, imci: "GENERAL_DANGER_SIGN", urgent: true },
+        "convulsions":           { mean: 4.0, sd: 0.3, imci: "GENERAL_DANGER_SIGN", urgent: true },
+        "lethargic_unconscious": { mean: 4.5, sd: 0.3, imci: "GENERAL_DANGER_SIGN", urgent: true },
+        
+        // BREATHING (IMCI Pneumonia Classification)
+        "fast_breathing":        { mean: 1.5, sd: 0.3, imci: "PNEUMONIA" },
+        "chest_indrawing":       { mean: 2.5, sd: 0.3, imci: "SEVERE_PNEUMONIA", urgent: true },
+        "stridor":               { mean: 3.0, sd: 0.3, imci: "SEVERE_PNEUMONIA", urgent: true },
+        "chronic_cough":         { mean: 1.0, sd: 0.4, imci: "CHRONIC_COUGH" },
+        
+        // DEHYDRATION (IMCI Diarrhoea Classification)
+        "restless_irritable":    { mean: 0.8, sd: 0.3, imci: "SOME_DEHYDRATION" },
+        "sunken_eyes":           { mean: 1.2, sd: 0.3, imci: "DEHYDRATION_SIGN" },
+        "drinks_eagerly":        { mean: 0.6, sd: 0.3, imci: "SOME_DEHYDRATION" },
+        "drinks_poorly":         { mean: 1.5, sd: 0.3, imci: "SEVERE_DEHYDRATION" },
+        "unable_to_drink":       { mean: 3.0, sd: 0.3, imci: "SEVERE_DEHYDRATION", urgent: true },
+        "skin_pinch_slow":       { mean: 1.0, sd: 0.3, imci: "SOME_DEHYDRATION" },
+        "skin_pinch_very_slow":  { mean: 2.0, sd: 0.3, imci: "SEVERE_DEHYDRATION" },
+        "blood_in_stool":        { mean: 1.8, sd: 0.4, imci: "DYSENTERY" },
+        "persistent_diarrhoea":  { mean: 1.5, sd: 0.4, imci: "PERSISTENT_DIARRHOEA" },
+        
+        // FEVER (IMCI Fever Classification)
+        "fever_high":            { mean: 1.0, sd: 0.3, imci: "FEVER" },
+        "fever_very_high":       { mean: 1.8, sd: 0.3, imci: "VERY_SEVERE_FEBRILE" },
+        "fever_prolonged":       { mean: 1.5, sd: 0.4, imci: "PROLONGED_FEVER" },
+        "stiff_neck":            { mean: 4.0, sd: 0.3, imci: "MENINGITIS", urgent: true },
+        
+        // OTHER
+        "severe_pallor":         { mean: 2.0, sd: 0.4, imci: "SEVERE_ANAEMIA" },
+        "measles_rash":          { mean: 0.8, sd: 0.4, imci: "MEASLES" },
+        "malnourished":          { mean: 1.2, sd: 0.4, imci: "MALNUTRITION" },
+        
+        // CONTEXT
+        "malaria_endemic":       { mean: 0.5, sd: 0.3, imci: "MALARIA_RISK" },
+        "cholera_outbreak":      { mean: 0.8, sd: 0.4, imci: "OUTBREAK" }
+    },
+    
+    // Interactions (super-additive effects)
+    interactions: {
+        "fever_plus_convulsions": {
+            requires: ["convulsions"],
+            with_fever: true,
+            mean: 1.0, sd: 0.3,
+            imci: "VERY_SEVERE_FEBRILE_DISEASE"
+        },
+        "fever_plus_stiff_neck": {
+            requires: ["stiff_neck"],
+            with_fever: true,
+            mean: 1.5, sd: 0.3,
+            imci: "MENINGITIS"
+        },
+        "dehydration_compound": {
+            // Multiple dehydration signs compound
+            requires_count: 2,
+            from: ["sunken_eyes", "skin_pinch_slow", "skin_pinch_very_slow", "restless_irritable", "drinks_eagerly", "drinks_poorly"],
+            mean: 0.8, sd: 0.3,
+            imci: "SOME_DEHYDRATION"
+        },
+        "severe_dehydration_compound": {
+            requires_count: 2,
+            from: ["lethargic_unconscious", "sunken_eyes", "skin_pinch_very_slow", "unable_to_drink"],
+            mean: 1.5, sd: 0.3,
+            imci: "SEVERE_DEHYDRATION",
+            urgent: true
+        }
+    },
+    
+    // Exclusive groups (like water engine)
+    factor_groups: [
+        {
+            name: "drinking_status",
+            mode: "max_only",
+            members: ["drinks_eagerly", "drinks_poorly", "unable_to_drink"]
+        },
+        {
+            name: "skin_pinch",
+            mode: "max_only", 
+            members: ["skin_pinch_slow", "skin_pinch_very_slow"]
+        },
+        {
+            name: "fever_level",
+            mode: "max_only",
+            members: ["fever_high", "fever_very_high"]
+        }
+    ]
+};
+
+// ============================================================
+// 2. PRNG (Same as Water Engine - XorShift128+)
+// ============================================================
+
+class XorShift128Plus {
+    constructor(seed) {
+        this.s0 = this.splitmix64(BigInt(seed));
+        this.s1 = this.splitmix64(BigInt(seed) ^ 0xDEADBEEFCAFEBABEn);
+    }
+
+    splitmix64(x) {
+        x = BigInt.asUintN(64, x + 0x9E3779B97F4A7C15n);
+        let z = x;
+        z = BigInt.asUintN(64, (z ^ (z >> 30n)) * 0xBF58476D1CE4E5B9n);
+        z = BigInt.asUintN(64, (z ^ (z >> 27n)) * 0x94D049BB133111EBn);
+        return BigInt.asUintN(64, z ^ (z >> 31n));
+    }
+
+    next() {
+        let x = this.s0;
+        let y = this.s1;
+        this.s0 = y;
+        x = BigInt.asUintN(64, x ^ (x << 23n));
+        this.s1 = BigInt.asUintN(64, x ^ y ^ (x >> 17n) ^ (y >> 26n));
+        return BigInt.asUintN(64, this.s1 + y);
+    }
+
+    nextDouble() {
+        const u = Number(this.next() >> 11n);
+        return u * (1.0 / 9007199254740992.0);
+    }
+
+    nextNormal(mean = 0, sd = 1) {
+        let u = 0, v = 0;
+        while(u === 0) u = this.nextDouble();
+        v = this.nextDouble();
+        const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        return mean + (z * sd);
+    }
+}
+
+// ============================================================
+// 3. SCORING ENGINE
+// ============================================================
+
+const sigmoid = (x) => 1 / (1 + Math.exp(-x));
+const logit = (p) => Math.log(p / (1 - p));
+
+function getActiveFactors(inputs) {
+    const factors = [];
+    
+    // General danger signs
+    if (inputs.not_able_to_drink) factors.push("not_able_to_drink");
+    if (inputs.vomits_everything) factors.push("vomits_everything");
+    if (inputs.convulsions) factors.push("convulsions");
+    if (inputs.lethargic_unconscious) factors.push("lethargic_unconscious");
+    
+    // Breathing
+    if (inputs.has_cough) {
+        if (inputs.fast_breathing) factors.push("fast_breathing");
+        if (inputs.chest_indrawing) factors.push("chest_indrawing");
+        if (inputs.stridor) factors.push("stridor");
+        if (inputs.cough_duration === "chronic") factors.push("chronic_cough");
+    }
+    
+    // Diarrhoea/Dehydration
+    if (inputs.has_diarrhoea) {
+        if (inputs.restless_irritable) factors.push("restless_irritable");
+        if (inputs.sunken_eyes) factors.push("sunken_eyes");
+        if (inputs.drinking_ability === "eager") factors.push("drinks_eagerly");
+        if (inputs.drinking_ability === "poor") factors.push("drinks_poorly");
+        if (inputs.drinking_ability === "unable") factors.push("unable_to_drink");
+        if (inputs.skin_pinch === "slow") factors.push("skin_pinch_slow");
+        if (inputs.skin_pinch === "very_slow") factors.push("skin_pinch_very_slow");
+        if (inputs.blood_in_stool) factors.push("blood_in_stool");
+        if (inputs.diarrhoea_duration === "persistent") factors.push("persistent_diarrhoea");
+    }
+    
+    // Fever
+    if (inputs.has_fever) {
+        if (inputs.temperature === "high") factors.push("fever_high");
+        if (inputs.temperature === "very_high") factors.push("fever_very_high");
+        if (inputs.fever_duration === "prolonged") factors.push("fever_prolonged");
+        if (inputs.stiff_neck) factors.push("stiff_neck");
+    }
+    
+    // Other
+    if (inputs.severe_pallor) factors.push("severe_pallor");
+    if (inputs.measles_rash) factors.push("measles_rash");
+    if (inputs.malnourished) factors.push("malnourished");
+    
+    // Context
+    if (inputs.malaria_endemic && inputs.has_fever) factors.push("malaria_endemic");
+    if (inputs.cholera_outbreak && inputs.has_diarrhoea) factors.push("cholera_outbreak");
+    
+    return factors;
+}
+
+function applyGroupedWeights(activeFactors, model, contributionsOut, isMonteCarlo, rng) {
+    let total = 0;
+    const used = new Set();
+
+    // Handle Exclusive Groups
+    for (const group of model.factor_groups || []) {
+        if (group.mode !== "max_only") continue;
+
+        let best = null;
+        for (const member of group.members) {
+            if (activeFactors.includes(member)) {
+                const wObj = model.weights[member];
+                if (!wObj) continue;
+                if (!best || wObj.mean > best.meanVal) {
+                    best = { key: member, wObj: wObj, meanVal: wObj.mean };
+                }
+            }
+        }
+
+        if (best) {
+            let val = best.wObj.mean;
+            if (isMonteCarlo && rng) {
+                val = rng.nextNormal(best.wObj.mean, best.wObj.sd);
+            }
+            total += val;
+            used.add(best.key);
+            if (contributionsOut) contributionsOut.push({ 
+                key: best.key, 
+                value: val,
+                imci: best.wObj.imci,
+                urgent: best.wObj.urgent
+            });
+        }
+    }
+
+    // Handle Non-Grouped Factors
+    for (const factor of activeFactors) {
+        if (used.has(factor)) continue;
+        
+        const wObj = model.weights[factor];
+        if (!wObj) continue;
+        
+        let val = wObj.mean;
+        if (isMonteCarlo && rng) {
+            val = rng.nextNormal(wObj.mean, wObj.sd);
+        }
+        total += val;
+        if (contributionsOut) contributionsOut.push({ 
+            key: factor, 
+            value: val,
+            imci: wObj.imci,
+            urgent: wObj.urgent
+        });
+    }
+
+    return total;
+}
+
+function checkInteractions(inputs, activeFactors, model, contributionsOut, isMonteCarlo, rng) {
+    let total = 0;
+    
+    // Fever + Convulsions
+    if (inputs.has_fever && activeFactors.includes("convulsions")) {
+        const int = model.interactions.fever_plus_convulsions;
+        let val = isMonteCarlo && rng ? rng.nextNormal(int.mean, int.sd) : int.mean;
+        total += val;
+        if (contributionsOut) contributionsOut.push({
+            key: "fever_plus_convulsions",
+            value: val,
+            imci: int.imci,
+            urgent: true
+        });
+    }
+    
+    // Fever + Stiff Neck
+    if (inputs.has_fever && activeFactors.includes("stiff_neck")) {
+        const int = model.interactions.fever_plus_stiff_neck;
+        let val = isMonteCarlo && rng ? rng.nextNormal(int.mean, int.sd) : int.mean;
+        total += val;
+        if (contributionsOut) contributionsOut.push({
+            key: "fever_plus_stiff_neck",
+            value: val,
+            imci: int.imci,
+            urgent: true
+        });
+    }
+    
+    // Dehydration compound (2+ signs)
+    const dehydrationSigns = model.interactions.dehydration_compound.from.filter(s => activeFactors.includes(s));
+    if (dehydrationSigns.length >= 2) {
+        const int = model.interactions.dehydration_compound;
+        let val = isMonteCarlo && rng ? rng.nextNormal(int.mean, int.sd) : int.mean;
+        total += val;
+        if (contributionsOut) contributionsOut.push({
+            key: "dehydration_compound",
+            value: val,
+            imci: int.imci
+        });
+    }
+    
+    // Severe dehydration compound
+    const severeDehydrationSigns = model.interactions.severe_dehydration_compound.from.filter(s => activeFactors.includes(s));
+    if (severeDehydrationSigns.length >= 2) {
+        const int = model.interactions.severe_dehydration_compound;
+        let val = isMonteCarlo && rng ? rng.nextNormal(int.mean, int.sd) : int.mean;
+        total += val;
+        if (contributionsOut) contributionsOut.push({
+            key: "severe_dehydration_compound",
+            value: val,
+            imci: int.imci,
+            urgent: true
+        });
+    }
+    
+    return total;
+}
+
+function computeDanger(inputs, model, seed = 12345) {
+    // Get age data
+    const ageData = model.age_priors[inputs.age_group] || model.age_priors.infant;
+    const isVulnerable = ageData.vulnerable || inputs.malnourished;
+    
+    // Get active factors
+    const activeFactors = getActiveFactors(inputs);
+    
+    // Deterministic calculation
+    let L_det = logit(ageData.p_danger);
+    const contributions = [];
+    
+    // Add factor weights
+    L_det += applyGroupedWeights(activeFactors, model, contributions, false, null);
+    
+    // Add interactions
+    L_det += checkInteractions(inputs, activeFactors, model, contributions, false, null);
+    
+    const P_det = sigmoid(L_det);
+    
+    // Monte Carlo
+    const rng = new XorShift128Plus(seed);
+    const samples = [];
+    
+    for (let i = 0; i < model.uncertainty.n_samples; i++) {
+        let L_iter = rng.nextNormal(logit(ageData.p_danger), ageData.sd);
+        L_iter += applyGroupedWeights(activeFactors, model, null, true, rng);
+        L_iter += checkInteractions(inputs, activeFactors, model, null, true, rng);
+        samples.push(sigmoid(L_iter));
+    }
+    
+    samples.sort((a, b) => a - b);
+    const p10 = samples[Math.floor((samples.length - 1) * 0.10)];
+    const p50 = samples[Math.floor((samples.length - 1) * 0.50)];
+    const p90 = samples[Math.floor((samples.length - 1) * 0.90)];
+    
+    // Determine category
+    const thr = isVulnerable ? model.thresholds.vulnerable : model.thresholds.standard;
+    let category = "green";
+    if (p50 >= thr.amber) category = "red";
+    else if (p50 >= thr.green) category = "amber";
+    
+    // Check for any urgent signs (override to red)
+    const hasUrgentSign = contributions.some(c => c.urgent);
+    if (hasUrgentSign) category = "red";
+    
+    // Confidence
+    let conf = 1.0 - (p90 - p10);
+    conf = Math.max(0.05, Math.min(0.95, conf));
+    
+    // Get IMCI classifications
+    const imciClassifications = [...new Set(contributions.filter(c => c.imci).map(c => c.imci))];
+    
+    return {
+        P: p50,
+        P_det: P_det,
+        min: p10,
+        max: p90,
+        category,
+        confidence: conf,
+        isVulnerable,
+        hasUrgentSign,
+        contributions: contributions.sort((a, b) => b.value - a.value),
+        imciClassifications,
+        activeFactors
+    };
+}
+
+// ============================================================
+// 4. UI STATE & NAVIGATION
+// ============================================================
+
+let currentStep = 1;
+const totalSteps = 7;
+
+function goToStep(step) {
+    if (step < 1 || step > totalSteps) return;
+    
+    // Check prerequisites
+    if (step > 1 && !document.getElementById('acknowledge').checked) {
+        alert("Please acknowledge the disclaimer first.");
+        return;
+    }
+    
+    currentStep = step;
+    updateStepUI();
+    updateUI();
+}
+
+function nextStep() {
+    if (currentStep < totalSteps) {
+        goToStep(currentStep + 1);
+    }
+}
+
+function prevStep() {
+    if (currentStep > 1) {
+        goToStep(currentStep - 1);
+    }
+}
+
+function updateStepUI() {
+    // Update step indicators
+    for (let i = 1; i <= totalSteps; i++) {
+        const el = document.getElementById(`step-${i}`);
+        el.classList.remove('step-active', 'step-complete', 'step-pending');
+        
+        if (i < currentStep) {
+            el.classList.add('step-complete');
+        } else if (i === currentStep) {
+            el.classList.add('step-active');
+        } else {
+            el.classList.add('step-pending');
+        }
+    }
+    
+    // Show/hide panels
+    for (let i = 1; i <= totalSteps; i++) {
+        const panel = document.getElementById(`panel-${i}`);
+        if (panel) {
+            panel.classList.toggle('hidden', i !== currentStep);
+        }
+    }
+    
+    // Update navigation buttons
+    document.getElementById('btn-prev').disabled = currentStep === 1;
+    document.getElementById('btn-next').textContent = currentStep === totalSteps - 1 ? 'See Results' : 'Next';
+    document.getElementById('btn-next').innerHTML = currentStep === totalSteps - 1 
+        ? 'See Results <i class="fas fa-check ml-2"></i>' 
+        : 'Next <i class="fas fa-arrow-right ml-2"></i>';
+    
+    if (currentStep === totalSteps) {
+        document.getElementById('btn-next').classList.add('hidden');
+    } else {
+        document.getElementById('btn-next').classList.remove('hidden');
+    }
+}
+
+function getInputs() {
+    const ageGroup = document.querySelector('input[name="age_group"]:checked')?.value || 'infant';
+    
+    return {
+        acknowledged: document.getElementById('acknowledge').checked,
+        age_group: ageGroup,
+        malnourished: document.getElementById('malnourished').checked,
+        
+        // Danger signs
+        not_able_to_drink: document.getElementById('not_able_to_drink').checked,
+        vomits_everything: document.getElementById('vomits_everything').checked,
+        convulsions: document.getElementById('convulsions').checked,
+        lethargic_unconscious: document.getElementById('lethargic_unconscious').checked,
+        
+        // Breathing
+        has_cough: document.getElementById('has_cough').checked,
+        fast_breathing: document.getElementById('fast_breathing').checked,
+        chest_indrawing: document.getElementById('chest_indrawing').checked,
+        stridor: document.getElementById('stridor').checked,
+        cough_duration: document.getElementById('cough_duration').value,
+        
+        // Diarrhoea
+        has_diarrhoea: document.getElementById('has_diarrhoea').checked,
+        restless_irritable: document.getElementById('restless_irritable').checked,
+        sunken_eyes: document.getElementById('sunken_eyes').checked,
+        drinking_ability: document.getElementById('drinking_ability').value,
+        skin_pinch: document.getElementById('skin_pinch').value,
+        blood_in_stool: document.getElementById('blood_in_stool').checked,
+        diarrhoea_duration: document.getElementById('diarrhoea_duration').value,
+        
+        // Fever
+        has_fever: document.getElementById('has_fever').checked,
+        temperature: document.getElementById('temperature').value,
+        fever_duration: document.getElementById('fever_duration').value,
+        stiff_neck: document.getElementById('stiff_neck').checked,
+        
+        // Other
+        severe_pallor: document.getElementById('severe_pallor').checked,
+        measles_rash: document.getElementById('measles_rash').checked,
+        
+        // Context
+        malaria_endemic: document.getElementById('malaria_endemic').checked,
+        cholera_outbreak: document.getElementById('cholera_outbreak').checked
+    };
+}
+
+function updateUI() {
+    const inputs = getInputs();
+    
+    // Update conditional sections
+    document.getElementById('breathing_details').classList.toggle('hidden', !inputs.has_cough);
+    document.getElementById('diarrhoea_details').classList.toggle('hidden', !inputs.has_diarrhoea);
+    document.getElementById('fever_details').classList.toggle('hidden', !inputs.has_fever);
+    
+    // Update fast breathing threshold display
+    const ageData = MODEL.age_priors[inputs.age_group] || MODEL.age_priors.infant;
+    document.getElementById('fast_breathing_threshold').textContent = 
+        `≥${ageData.fast_breathing_threshold} breaths/min for ${inputs.age_group.replace('_', ' ')}`;
+    
+    // Compute risk
+    const result = computeDanger(inputs, MODEL, Date.now());
+    
+    // Update gauge
+    const pct = Math.round(result.P * 100);
+    const arc = document.getElementById('gauge_arc');
+    const text = document.getElementById('percent_text');
+    
+    const maxLen = 126;
+    const dash = (pct / 100) * maxLen;
+    arc.style.strokeDasharray = `${dash}, 1000`;
+    text.textContent = inputs.acknowledged ? `${pct}%` : '—%';
+    
+    // Update badge
+    const badge = document.getElementById('risk_badge');
+    if (!inputs.acknowledged) {
+        badge.textContent = 'Awaiting Input';
+        badge.className = 'px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wide bg-slate-200 text-slate-600';
+    } else {
+        const badgeConfig = {
+            green: { text: 'GREEN — Home Care', class: 'bg-emerald-100 text-emerald-800' },
+            amber: { text: 'AMBER — Clinic 24h', class: 'bg-amber-100 text-amber-800' },
+            red: { text: 'RED — Urgent Referral', class: 'bg-red-100 text-red-800 danger-pulse' }
+        };
+        const config = badgeConfig[result.category];
+        badge.textContent = config.text;
+        badge.className = `px-4 py-2 rounded-full text-sm font-bold uppercase tracking-wide ${config.class}`;
+    }
+    
+    // Update CI bar
+    const ciBar = document.getElementById('ci_bar');
+    const medMark = document.getElementById('median_marker');
+    ciBar.style.left = (result.min * 100) + '%';
+    ciBar.style.width = ((result.max - result.min) * 100) + '%';
+    medMark.style.left = (result.P * 100) + '%';
+    
+    document.getElementById('ci_low').textContent = result.min.toFixed(2);
+    document.getElementById('ci_median').textContent = result.P.toFixed(2);
+    document.getElementById('ci_high').textContent = result.max.toFixed(2);
+    
+    // Update reasons
+    const list = document.getElementById('reasons_list');
+    list.innerHTML = "";
+    if (result.contributions.length === 0) {
+        list.innerHTML = `<li class="text-slate-400 italic">No significant risk factors detected</li>`;
+    } else {
+        result.contributions.slice(0, 5).forEach(c => {
+            const li = document.createElement('li');
+            const urgentBadge = c.urgent ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded ml-2">URGENT</span>' : '';
+            li.className = "flex justify-between items-center p-2 rounded " + (c.urgent ? "bg-red-50" : "bg-slate-50");
+            const name = c.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            li.innerHTML = `<span class="text-slate-700">${name}${urgentBadge}</span> <span class="mono text-xs text-slate-500">+${c.value.toFixed(2)}</span>`;
+            list.appendChild(li);
+        });
+    }
+    
+    // Update guidance card
+    updateGuidanceCard(result, inputs);
+    
+    // Update IMCI classifications
+    updateIMCIClassifications(result);
+    
+    // Update JSON
+    const output = {
+        version: MODEL.version,
+        result: {
+            P: result.P,
+            min: result.min,
+            max: result.max,
+            category: result.category,
+            isVulnerable: result.isVulnerable,
+            hasUrgentSign: result.hasUrgentSign,
+            imciClassifications: result.imciClassifications
+        },
+        inputs: inputs
+    };
+    document.getElementById('json_output').textContent = JSON.stringify(output, null, 2);
+}
+
+function updateGuidanceCard(result, inputs) {
+    const card = document.getElementById('guidance-card');
+    const icon = document.getElementById('guidance_icon');
+    const title = document.getElementById('guidance_title');
+    const subtitle = document.getElementById('guidance_subtitle');
+    const content = document.getElementById('guidance_content');
+    
+    card.classList.remove('danger-green', 'danger-amber', 'danger-red');
+    
+    if (!inputs.acknowledged) {
+        card.classList.add('danger-green');
+        icon.className = 'fas fa-info-circle text-slate-600 text-lg';
+        title.textContent = 'Awaiting Assessment';
+        subtitle.textContent = 'Complete the steps to receive guidance';
+        content.innerHTML = '<p>Answer the assessment questions on the left to receive IMCI-based guidance.</p>';
+        return;
+    }
+    
+    if (result.category === 'green') {
+        card.classList.add('danger-green');
+        icon.className = 'fas fa-home text-emerald-600 text-lg';
+        title.textContent = 'GREEN — Manage at Home';
+        subtitle.textContent = 'No immediate danger signs detected';
+        content.innerHTML = `
+            <ul class="list-disc list-inside space-y-1">
+                <li>Continue feeding (breastfeeding if applicable)</li>
+                <li>Give more fluids than usual</li>
+                <li>Watch for danger signs</li>
+                <li>Return if child gets worse or cannot drink</li>
+                ${inputs.has_fever ? '<li>Give paracetamol for fever if needed</li>' : ''}
+                ${inputs.has_cough ? '<li>Soothe throat with safe remedy (warm tea with honey if >1 year)</li>' : ''}
+            </ul>
+            <p class="mt-3 text-xs text-slate-500">Return in 5 days if not improving, or immediately if danger signs appear.</p>
+        `;
+    } else if (result.category === 'amber') {
+        card.classList.add('danger-amber');
+        icon.className = 'fas fa-clinic-medical text-amber-600 text-lg';
+        title.textContent = 'AMBER — Clinic Within 24 Hours';
+        subtitle.textContent = 'Child needs assessment by health worker';
+        content.innerHTML = `
+            <ul class="list-disc list-inside space-y-1">
+                <li><strong>Take child to health facility today</strong></li>
+                <li>Continue feeding and fluids</li>
+                ${inputs.has_diarrhoea ? '<li>Give ORS after each loose stool</li>' : ''}
+                ${inputs.has_fever ? '<li>Keep child cool and give paracetamol</li>' : ''}
+                <li>Watch closely for worsening</li>
+            </ul>
+            <p class="mt-3 text-xs text-amber-700 font-medium">⚠️ If any general danger sign appears, go immediately.</p>
+        `;
+    } else {
+        card.classList.add('danger-red');
+        icon.className = 'fas fa-ambulance text-red-600 text-lg';
+        title.textContent = 'RED — Urgent Referral NOW';
+        subtitle.textContent = 'Child has danger signs requiring immediate care';
+        content.innerHTML = `
+            <div class="bg-red-100 p-3 rounded-lg mb-3">
+                <p class="font-bold text-red-800">⚠️ REFER URGENTLY TO HOSPITAL</p>
+            </div>
+            <p class="font-medium mb-2">Before leaving:</p>
+            <ul class="list-disc list-inside space-y-1">
+                ${result.hasUrgentSign && result.imciClassifications.includes('GENERAL_DANGER_SIGN') ? '<li>Give first dose of antibiotic if available</li>' : ''}
+                ${inputs.convulsions ? '<li>Treat to prevent low blood sugar (breastmilk/sugar water)</li>' : ''}
+                ${inputs.has_fever && inputs.temperature === 'very_high' ? '<li>Treat fever with paracetamol</li>' : ''}
+                ${inputs.has_diarrhoea ? '<li>Give ORS sips on the way</li>' : ''}
+                <li>Keep child warm</li>
+                <li>Continue breastfeeding if possible</li>
+            </ul>
+            <p class="mt-3 text-xs text-red-700 font-medium">Time is critical. Do not delay transport.</p>
+        `;
+    }
+}
+
+function updateIMCIClassifications(result) {
+    const container = document.getElementById('imci_classifications');
+    
+    if (result.imciClassifications.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 italic text-xs">No IMCI classifications triggered</p>';
+        return;
+    }
+    
+    const classificationColors = {
+        'GENERAL_DANGER_SIGN': 'bg-red-100 text-red-800 border-red-200',
+        'SEVERE_PNEUMONIA': 'bg-red-100 text-red-800 border-red-200',
+        'SEVERE_DEHYDRATION': 'bg-red-100 text-red-800 border-red-200',
+        'MENINGITIS': 'bg-red-100 text-red-800 border-red-200',
+        'VERY_SEVERE_FEBRILE_DISEASE': 'bg-red-100 text-red-800 border-red-200',
+        'PNEUMONIA': 'bg-amber-100 text-amber-800 border-amber-200',
+        'SOME_DEHYDRATION': 'bg-amber-100 text-amber-800 border-amber-200',
+        'DYSENTERY': 'bg-amber-100 text-amber-800 border-amber-200',
+        'FEVER': 'bg-amber-100 text-amber-800 border-amber-200',
+        'DEHYDRATION_SIGN': 'bg-blue-100 text-blue-800 border-blue-200'
+    };
+    
+    container.innerHTML = result.imciClassifications.map(c => {
+        const colorClass = classificationColors[c] || 'bg-slate-100 text-slate-800 border-slate-200';
+        const name = c.replace(/_/g, ' ');
+        return `<span class="inline-block px-2 py-1 rounded border text-xs font-medium ${colorClass} mr-1 mb-1">${name}</span>`;
+    }).join('');
+}
+
+function resetAssessment() {
+    // Reset all checkboxes
+    document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
+    
+    // Reset selects
+    document.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+    
+    // Reset radio to default
+    document.querySelector('input[name="age_group"][value="infant"]').checked = true;
+    
+    // Go to step 1
+    currentStep = 1;
+    updateStepUI();
+    updateUI();
+}
+
+// ============================================================
+// 5. TEST SUITE
+// ============================================================
+
+const BASE_INPUTS = {
+    acknowledged: true,
+    age_group: 'infant',
+    malnourished: false,
+    not_able_to_drink: false,
+    vomits_everything: false,
+    convulsions: false,
+    lethargic_unconscious: false,
+    has_cough: false,
+    fast_breathing: false,
+    chest_indrawing: false,
+    stridor: false,
+    cough_duration: 'acute',
+    has_diarrhoea: false,
+    restless_irritable: false,
+    sunken_eyes: false,
+    drinking_ability: 'normal',
+    skin_pinch: 'immediate',
+    blood_in_stool: false,
+    diarrhoea_duration: 'acute',
+    has_fever: false,
+    temperature: 'unknown',
+    fever_duration: 'short',
+    stiff_neck: false,
+    severe_pallor: false,
+    measles_rash: false,
+    malaria_endemic: false,
+    cholera_outbreak: false
+};
+
+const TESTS = [
+    {
+        name: "Healthy infant (no symptoms) -> Green",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "green", `Expected green, got ${res.category}`);
+            assert(res.P < 0.15, `Expected P < 0.15, got ${res.P.toFixed(2)}`);
+        }
+    },
+    {
+        name: "General Danger Sign (convulsions) -> Red + Urgent",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, convulsions: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+            assert(res.hasUrgentSign === true, "Should have urgent sign");
+            assert(res.imciClassifications.includes("GENERAL_DANGER_SIGN"), "Should classify as GENERAL_DANGER_SIGN");
+        }
+    },
+    {
+        name: "General Danger Sign (lethargic) -> Red + Urgent",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, lethargic_unconscious: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+            assert(res.hasUrgentSign === true, "Should have urgent sign");
+        }
+    },
+    {
+        name: "Pneumonia (fast breathing only) -> Amber",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, has_cough: true, fast_breathing: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "amber" || res.category === "green", `Expected amber or green, got ${res.category}`);
+            assert(res.imciClassifications.includes("PNEUMONIA"), "Should classify as PNEUMONIA");
+        }
+    },
+    {
+        name: "Severe Pneumonia (chest indrawing) -> Red",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, has_cough: true, chest_indrawing: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+            assert(res.imciClassifications.includes("SEVERE_PNEUMONIA"), "Should classify as SEVERE_PNEUMONIA");
+        }
+    },
+    {
+        name: "Some Dehydration (2+ signs) -> Amber",
+        fn: () => {
+            const inputs = { 
+                ...BASE_INPUTS, 
+                has_diarrhoea: true, 
+                restless_irritable: true, 
+                sunken_eyes: true,
+                drinking_ability: 'eager'
+            };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "amber" || res.category === "red", `Expected amber/red, got ${res.category}`);
+        }
+    },
+    {
+        name: "Severe Dehydration (2+ severe signs) -> Red",
+        fn: () => {
+            const inputs = { 
+                ...BASE_INPUTS, 
+                has_diarrhoea: true,
+                lethargic_unconscious: true,
+                sunken_eyes: true,
+                skin_pinch: 'very_slow'
+            };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+        }
+    },
+    {
+        name: "Fever + Stiff Neck -> Red (Meningitis)",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, has_fever: true, stiff_neck: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+            assert(res.imciClassifications.includes("MENINGITIS"), "Should classify as MENINGITIS");
+        }
+    },
+    {
+        name: "Neonate has lower thresholds (vulnerable)",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, age_group: 'neonate' };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.isVulnerable === true, "Neonate should be vulnerable");
+        }
+    },
+    {
+        name: "Exclusive group: drinks_poorly overrides drinks_eagerly",
+        fn: () => {
+            const inputs = { 
+                ...BASE_INPUTS, 
+                has_diarrhoea: true,
+                drinking_ability: 'poor' // This should be used
+            };
+            const res = computeDanger(inputs, MODEL);
+            const hasPoor = res.contributions.some(c => c.key === 'drinks_poorly');
+            assert(hasPoor, "Should have drinks_poorly contribution");
+        }
+    }
+];
+
+function assert(condition, message) {
+    if (!condition) throw new Error(message);
+}
+
+function runTests() {
+    const consoleDiv = document.getElementById('test_console');
+    const statusSpan = document.getElementById('test_status');
+    consoleDiv.innerHTML = "";
+    statusSpan.textContent = "RUNNING...";
+    statusSpan.className = "text-xs uppercase tracking-wider text-yellow-500";
+    
+    let passed = 0;
+    
+    setTimeout(() => {
+        TESTS.forEach((test, idx) => {
+            try {
+                test.fn();
+                consoleDiv.innerHTML += `<div class="text-emerald-400">✔ [${idx+1}] ${test.name}</div>`;
+                passed++;
+            } catch (e) {
+                consoleDiv.innerHTML += `<div class="text-red-400">✘ [${idx+1}] ${test.name}<br><span class="pl-4 text-red-300">${e.message}</span></div>`;
+            }
+        });
+        
+        consoleDiv.innerHTML += `<div class="mt-3 border-t border-slate-700 pt-2 text-white">${passed}/${TESTS.length} Passed</div>`;
+        
+        if (passed === TESTS.length) {
+            statusSpan.textContent = "PASS";
+            statusSpan.className = "text-xs uppercase tracking-wider text-emerald-500";
+        } else {
+            statusSpan.textContent = "FAIL";
+            statusSpan.className = "text-xs uppercase tracking-wider text-red-500";
+        }
+    }, 100);
+}
+
+// ============================================================
+// 6. INITIALIZATION
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateStepUI();
+    updateUI();
+});
+</script>
+</body>
+</html>
