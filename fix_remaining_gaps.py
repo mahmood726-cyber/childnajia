@@ -8,10 +8,11 @@ Fixes all remaining minor gaps from WHO review:
 4. Add complete Nutrition assessment UI (MUAC, wasting, oedema)
 """
 
+import os
 import re
 
 # Read the current version
-with open(r'C:\Users\user\Downloads\childnajia\hidayah-v1.2.0.html', 'r', encoding='utf-8') as f:
+with open(os.path.expanduser(r'~\Downloads\childnajia\hidayah-v1.2.0.html'), 'r', encoding='utf-8') as f:
     html = f.read()
 
 # Update version number
@@ -437,7 +438,7 @@ if 'if (inputs.pallor === "severe")' not in html:
     )
 
 # Write the new version
-with open(r'C:\Users\user\Downloads\childnajia\hidayah-v1.3.0.html', 'w', encoding='utf-8') as f:
+with open(os.path.expanduser(r'~\Downloads\childnajia\hidayah-v1.3.0.html'), 'w', encoding='utf-8') as f:
     f.write(html)
 
 print("HIDAYAH v1.3.0 created successfully!")
