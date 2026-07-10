@@ -991,7 +991,7 @@
 // ============================================================
 
 const MODEL = {
-    version: "1.2.0",
+    version: "1.3.0",
     model_name: "HIDAYAH_ClinicalDangerEngine",
 
     // Decay function for time-dependent factors
@@ -2506,6 +2506,74 @@ const TESTS = [
             const res = computeDanger(inputs, MODEL);
             const hasPoor = res.contributions.some(c => c.key === 'drinks_poorly');
             assert(hasPoor, "Should have drinks_poorly contribution");
+        }
+    },
+
+    // EXTENDED COVERAGE: high-risk urgent-override, boundary, and compound paths.
+    {
+        name: "Urgent sign (stridor) forces category=red regardless of P",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, has_cough: true, stridor: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.activeFactors.includes("stridor"), "stridor should be an active factor");
+            assert(res.hasUrgentSign === true, "stridor is urgent -> hasUrgentSign true");
+            assert(res.category === "red", `Urgent override should force red, got ${res.category}`);
+        }
+    },
+    {
+        name: "Haemoglobin anaemia thresholds map to correct factor (boundaries)",
+        fn: () => {
+            const factorFor = (hb) => computeDanger({ ...BASE_INPUTS, haemoglobin: hb }, MODEL).activeFactors;
+            // < 7 severe; < 10 moderate; < 11 mild; >= 11 none
+            assert(factorFor(6.9).includes("hb_severe_anaemia"), "6.9 -> severe");
+            assert(!factorFor(7).includes("hb_severe_anaemia") && factorFor(7).includes("hb_moderate_anaemia"), "7 -> moderate (not severe)");
+            assert(factorFor(9.9).includes("hb_moderate_anaemia"), "9.9 -> moderate");
+            assert(!factorFor(10).includes("hb_moderate_anaemia") && factorFor(10).includes("hb_mild_anaemia"), "10 -> mild (not moderate)");
+            assert(factorFor(10.9).includes("hb_mild_anaemia"), "10.9 -> mild");
+            const at11 = factorFor(11);
+            assert(!at11.includes("hb_severe_anaemia") && !at11.includes("hb_moderate_anaemia") && !at11.includes("hb_mild_anaemia"), "11 -> no anaemia factor");
+        }
+    },
+    {
+        name: "Respiratory distress compound (2+ signs) fires + urgent red",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, has_cough: true, nasal_flaring: true, fast_breathing: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.contributions.some(c => c.key === "respiratory_distress"), "respiratory_distress interaction should fire");
+            assert(res.imciClassifications.includes("SEVERE_RESPIRATORY_DISTRESS"), "Should classify SEVERE_RESPIRATORY_DISTRESS");
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+        }
+    },
+    {
+        name: "Young infant multiple signs (2+) fires -> Red",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, age_group: 'young_infant', poor_feeding: true, movement: 'reduced' };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.contributions.some(c => c.key === "young_infant_multiple_signs"), "young_infant_multiple_signs should fire");
+            assert(res.imciClassifications.includes("SERIOUS_BACTERIAL_INFECTION"), "Should classify SERIOUS_BACTERIAL_INFECTION");
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+        }
+    },
+    {
+        name: "Severe malnutrition + infection compound fires -> Red",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, visible_severe_wasting: true, has_fever: true };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.contributions.some(c => c.key === "malnutrition_plus_infection"), "malnutrition_plus_infection should fire");
+            assert(res.imciClassifications.includes("SEVERE_MALNUTRITION_WITH_INFECTION"), "Should classify SEVERE_MALNUTRITION_WITH_INFECTION");
+            assert(res.category === "red", `Expected red, got ${res.category}`);
+        }
+    },
+    {
+        name: "Malaria endemic + fever + severe pallor fires severe malaria -> Red",
+        fn: () => {
+            const inputs = { ...BASE_INPUTS, malaria_endemic: true, has_fever: true, pallor: 'severe' };
+            const res = computeDanger(inputs, MODEL);
+            assert(res.activeFactors.includes("malaria_endemic"), "malaria_endemic factor active");
+            assert(res.activeFactors.includes("severe_pallor"), "severe_pallor factor active");
+            assert(res.contributions.some(c => c.key === "malaria_severe_anaemia"), "malaria_severe_anaemia should fire");
+            assert(res.imciClassifications.includes("SEVERE_MALARIA"), "Should classify SEVERE_MALARIA");
+            assert(res.category === "red", `Expected red, got ${res.category}`);
         }
     }
 ];
